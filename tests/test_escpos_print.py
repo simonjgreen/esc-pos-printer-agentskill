@@ -54,3 +54,45 @@ def test_text_job_large_size():
 
     set_calls = [c for c in printer.calls if c[0] == 'set']
     assert any(c[1].get('double_width') == True and c[1].get('double_height') == True for c in set_calls)
+
+
+def test_separator_default():
+    printer = MockPrinter()
+    jobs = [{"type": "separator"}]
+    process_jobs(printer, jobs, columns=48)
+
+    text_calls = [c for c in printer.calls if c[0] == 'text']
+    assert len(text_calls) == 1
+    assert text_calls[0][1] == "-" * 48 + "\n"
+
+
+def test_separator_custom_char():
+    printer = MockPrinter()
+    jobs = [{"type": "separator", "char": "="}]
+    process_jobs(printer, jobs, columns=48)
+
+    text_calls = [c for c in printer.calls if c[0] == 'text']
+    assert text_calls[0][1] == "=" * 48 + "\n"
+
+
+def test_columns_job():
+    printer = MockPrinter()
+    jobs = [{"type": "columns", "left": "Item", "right": "$5.00"}]
+    process_jobs(printer, jobs, columns=48)
+
+    text_calls = [c for c in printer.calls if c[0] == 'text']
+    assert len(text_calls) == 1
+    line = text_calls[0][1]
+    assert line.startswith("Item")
+    assert line.rstrip("\n").endswith("$5.00")
+    assert len(line.rstrip("\n")) == 48
+
+
+def test_columns_job_32_cols():
+    printer = MockPrinter()
+    jobs = [{"type": "columns", "left": "Tax", "right": "$1.00"}]
+    process_jobs(printer, jobs, columns=32)
+
+    text_calls = [c for c in printer.calls if c[0] == 'text']
+    line = text_calls[0][1]
+    assert len(line.rstrip("\n")) == 32

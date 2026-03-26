@@ -19,6 +19,10 @@ def process_jobs(printer, jobs, columns=48):
         job_type = job.get("type")
         if job_type == "text":
             _handle_text(printer, job, columns)
+        elif job_type == "separator":
+            _handle_separator(printer, job, columns)
+        elif job_type == "columns":
+            _handle_columns(printer, job, columns)
         elif job_type == "cut":
             printer.cut()
 
@@ -53,6 +57,31 @@ def _handle_text(printer, job, columns):
         double_width=False,
         double_height=False,
     )
+
+
+def _handle_separator(printer, job, columns):
+    """Print a horizontal separator line."""
+    char = job.get("char", "-")
+    printer.text(char * columns + "\n")
+
+
+def _handle_columns(printer, job, columns):
+    """Print a two-column row (left-aligned + right-aligned)."""
+    left = job.get("left", "")
+    right = job.get("right", "")
+    bold = job.get("bold", False)
+
+    if bold:
+        printer.set(bold=True)
+
+    padding = columns - len(left) - len(right)
+    if padding < 1:
+        padding = 1
+    line = left + " " * padding + right
+    printer.text(line + "\n")
+
+    if bold:
+        printer.set(bold=False)
 
 
 def main():
