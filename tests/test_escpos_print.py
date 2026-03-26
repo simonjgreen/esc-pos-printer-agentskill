@@ -130,6 +130,7 @@ def test_barcode_default_format():
     process_jobs(printer, jobs, columns=48)
 
     bc_calls = [c for c in printer.calls if c[0] == 'barcode']
+    assert bc_calls[0][1] == "{BTESTPRINT123"  # CODE128 auto-prefixed with {B
     assert bc_calls[0][2] == "CODE128"
 
 

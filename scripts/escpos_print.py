@@ -96,6 +96,10 @@ def _handle_barcode(printer, job, columns):
     bc_format = job.get("format", "CODE128")
     align = job.get("align", "center")
 
+    # CODE128 needs subset prefix for hardware rendering
+    if bc_format == "CODE128" and not data.startswith("{"):
+        data = "{B" + data
+
     printer.set(align=align)
     printer.barcode(data, bc_format)
     printer.set(align="left")
