@@ -181,38 +181,56 @@ def test_feed_default():
     assert ln_calls[0][1] == 1
 
 
+def _make_test_image(w=100, h=50):
+    """Create a temp test image and return its path."""
+    f = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
+    img = Image.new("RGB", (w, h), color="gray")
+    img.save(f.name)
+    f.close()
+    return f.name
+
+
 def test_image_job():
     printer = MockPrinterFull()
-
-    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
-        img = Image.new("RGB", (100, 50), color="white")
-        img.save(f.name)
-        tmp_path = f.name
+    tmp_path = _make_test_image()
 
     jobs = [{"type": "image", "path": tmp_path}]
     process_jobs(printer, jobs, columns=48)
 
     img_calls = [c for c in printer.calls if c[0] == 'image']
     assert len(img_calls) == 1
+    # Default dither is stucki — output should be 1-bit
+    assert img_calls[0][1].mode == "1"
 
     os.unlink(tmp_path)
 
 
 def test_image_job_with_width():
     printer = MockPrinterFull()
-
-    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
-        img = Image.new("RGB", (400, 200), color="white")
-        img.save(f.name)
-        tmp_path = f.name
+    tmp_path = _make_test_image(400, 200)
 
     jobs = [{"type": "image", "path": tmp_path, "width": 200}]
     process_jobs(printer, jobs, columns=48)
 
     img_calls = [c for c in printer.calls if c[0] == 'image']
     assert len(img_calls) == 1
-    passed_img = img_calls[0][1]
-    assert passed_img.width == 200
+    assert img_calls[0][1].width == 200
+
+    os.unlink(tmp_path)
+
+
+def test_image_dither_methods():
+    """All dither methods produce 1-bit output without errors."""
+    tmp_path = _make_test_image(50, 50)
+
+    for method in ["stucki", "atkinson", "floyd-steinberg", "ordered", "threshold", "enhanced"]:
+        printer = MockPrinterFull()
+        jobs = [{"type": "image", "path": tmp_path, "dither": method}]
+        process_jobs(printer, jobs, columns=48)
+
+        img_calls = [c for c in printer.calls if c[0] == 'image']
+        assert len(img_calls) == 1, f"{method} failed to produce image call"
+        assert img_calls[0][1].mode == "1", f"{method} did not produce 1-bit image"
 
     os.unlink(tmp_path)
 

@@ -81,9 +81,17 @@ Formats: EAN13, UPC-A, CODE39, CODE128, ITF, CODABAR.
 
 #### Image
 ```json
-{"type": "image", "path": "/tmp/image.png", "width": 200}
+{"type": "image", "path": "/tmp/image.png", "width": 384, "dither": "stucki"}
 ```
-Supports PNG, JPG, BMP. Width in pixels (height scales proportionally).
+Supports PNG, JPG, BMP. Width in pixels (height scales proportionally). Max printable width is typically 384px for 80mm printers.
+
+- `dither`: Dithering method for converting to 1-bit. Choose based on content:
+  - `"stucki"` (default) — sharp, high detail. Best for photos and complex images.
+  - `"ordered"` — halftone pattern. Good for graphics, illustrations, gradients.
+  - `"enhanced"` — contrast/sharpness boost + Floyd-Steinberg. Good for low-contrast or washed-out images.
+  - `"atkinson"` — lighter, higher contrast. Good for logos, icons, line art with some shading.
+  - `"floyd-steinberg"` — classic error diffusion. General purpose, slightly softer than Stucki.
+  - `"threshold"` — hard black/white cutoff, no dithering. Best for already-monochrome images, text, simple logos.
 
 #### Feed
 ```json

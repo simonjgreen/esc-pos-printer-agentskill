@@ -4,7 +4,8 @@
 import json
 import sys
 from escpos.printer import Network
-from PIL import Image as PILImage
+from PIL import Image as PILImage, ImageEnhance
+import numpy as np
 
 
 # GS ! n — character size. n = (width_mult - 1) << 4 | (height_mult - 1)
@@ -70,6 +71,7 @@ def _handle_image(printer, job):
     """Print an image from a file path."""
     path = job.get("path", "")
     width = job.get("width")
+    dither = job.get("dither", "stucki")
 
     img = PILImage.open(path)
     if width:
@@ -77,7 +79,76 @@ def _handle_image(printer, job):
         new_height = int(img.height * ratio)
         img = img.resize((width, new_height))
 
-    printer.image(img)
+    bw = _dither_image(img, dither)
+    printer.image(bw)
+
+
+def _dither_image(img, method="stucki"):
+    """Convert an image to 1-bit using the specified dithering method."""
+    gray = img.convert("L")
+
+    if method == "floyd-steinberg":
+        return gray.convert("1", dither=PILImage.Dither.FLOYDSTEINBERG)
+
+    if method == "ordered":
+        return gray.convert("1", dither=PILImage.Dither.ORDERED)
+
+    if method == "threshold":
+        return gray.point(lambda x: 255 if x > 128 else 0, "1")
+
+    if method == "enhanced":
+        enhanced = ImageEnhance.Contrast(gray).enhance(1.5)
+        enhanced = ImageEnhance.Sharpness(enhanced).enhance(2.0)
+        return enhanced.convert("1", dither=PILImage.Dither.FLOYDSTEINBERG)
+
+    # Error-diffusion methods implemented with numpy
+    img_arr = np.array(gray, dtype=np.float64)
+
+    if method == "atkinson":
+        _diffuse_atkinson(img_arr)
+    else:  # stucki (default)
+        _diffuse_stucki(img_arr)
+
+    return PILImage.fromarray(
+        np.clip(img_arr, 0, 255).astype(np.uint8)
+    ).convert("1", dither=PILImage.Dither.NONE)
+
+
+def _diffuse_stucki(arr):
+    """Stucki error diffusion — sharp, high detail."""
+    h, w = arr.shape
+    kernel = [
+        (1,0,8),(2,0,4),
+        (-2,1,2),(-1,1,4),(0,1,8),(1,1,4),(2,1,2),
+        (-2,2,1),(-1,2,2),(0,2,4),(1,2,2),(2,2,1),
+    ]
+    total = 42
+    for y in range(h):
+        for x in range(w):
+            old = arr[y, x]
+            new = 255.0 if old > 128 else 0.0
+            arr[y, x] = new
+            err = old - new
+            for dx, dy, weight in kernel:
+                nx, ny = x + dx, y + dy
+                if 0 <= nx < w and 0 <= ny < h:
+                    arr[ny, nx] += err * weight / total
+
+
+def _diffuse_atkinson(arr):
+    """Atkinson error diffusion — lighter, more contrast, classic Mac style."""
+    h, w = arr.shape
+    offsets = [(1,0),(2,0),(-1,1),(0,1),(1,1),(0,2)]
+    for y in range(h):
+        for x in range(w):
+            old = arr[y, x]
+            new = 255.0 if old > 128 else 0.0
+            arr[y, x] = new
+            err = (old - new) / 8.0
+            for dx, dy in offsets:
+                nx, ny = x + dx, y + dy
+                if 0 <= nx < w and 0 <= ny < h:
+                    arr[ny, nx] += err
 
 
 def _handle_feed(printer, job):
