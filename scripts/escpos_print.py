@@ -4,6 +4,7 @@
 import json
 import sys
 from escpos.printer import Network
+from PIL import Image as PILImage
 
 
 SIZE_MAP = {
@@ -27,6 +28,10 @@ def process_jobs(printer, jobs, columns=48):
             _handle_barcode(printer, job, columns)
         elif job_type == "qr":
             _handle_qr(printer, job)
+        elif job_type == "image":
+            _handle_image(printer, job)
+        elif job_type == "feed":
+            _handle_feed(printer, job)
         elif job_type == "cut":
             printer.cut()
 
@@ -61,6 +66,26 @@ def _handle_text(printer, job, columns):
         double_width=False,
         double_height=False,
     )
+
+
+def _handle_image(printer, job):
+    """Print an image from a file path."""
+    path = job.get("path", "")
+    width = job.get("width")
+
+    img = PILImage.open(path)
+    if width:
+        ratio = width / img.width
+        new_height = int(img.height * ratio)
+        img = img.resize((width, new_height))
+
+    printer.image(img)
+
+
+def _handle_feed(printer, job):
+    """Feed blank lines."""
+    lines = job.get("lines", 1)
+    printer.ln(lines)
 
 
 def _handle_barcode(printer, job, columns):

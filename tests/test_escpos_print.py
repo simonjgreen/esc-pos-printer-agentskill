@@ -151,3 +151,62 @@ def test_qr_defaults():
 
     qr_calls = [c for c in printer.calls if c[0] == 'qr']
     assert qr_calls[0][2].get('size') == 6
+
+
+import tempfile
+from PIL import Image
+
+
+def test_feed_job():
+    printer = MockPrinterFull()
+    jobs = [{"type": "feed", "lines": 3}]
+    process_jobs(printer, jobs, columns=48)
+
+    ln_calls = [c for c in printer.calls if c[0] == 'ln']
+    assert len(ln_calls) == 1
+    assert ln_calls[0][1] == 3
+
+
+def test_feed_default():
+    printer = MockPrinterFull()
+    jobs = [{"type": "feed"}]
+    process_jobs(printer, jobs, columns=48)
+
+    ln_calls = [c for c in printer.calls if c[0] == 'ln']
+    assert ln_calls[0][1] == 1
+
+
+def test_image_job():
+    printer = MockPrinterFull()
+
+    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
+        img = Image.new("RGB", (100, 50), color="white")
+        img.save(f.name)
+        tmp_path = f.name
+
+    jobs = [{"type": "image", "path": tmp_path}]
+    process_jobs(printer, jobs, columns=48)
+
+    img_calls = [c for c in printer.calls if c[0] == 'image']
+    assert len(img_calls) == 1
+
+    os.unlink(tmp_path)
+
+
+def test_image_job_with_width():
+    printer = MockPrinterFull()
+
+    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
+        img = Image.new("RGB", (400, 200), color="white")
+        img.save(f.name)
+        tmp_path = f.name
+
+    jobs = [{"type": "image", "path": tmp_path, "width": 200}]
+    process_jobs(printer, jobs, columns=48)
+
+    img_calls = [c for c in printer.calls if c[0] == 'image']
+    assert len(img_calls) == 1
+    passed_img = img_calls[0][1]
+    assert passed_img.width == 200
+
+    os.unlink(tmp_path)
