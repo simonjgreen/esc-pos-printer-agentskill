@@ -7,11 +7,19 @@ from escpos.printer import Network
 from PIL import Image as PILImage
 
 
+# GS ! n — character size. n = (width_mult - 1) << 4 | (height_mult - 1)
 SIZE_MAP = {
-    "normal": {"double_width": False, "double_height": False},
-    "large": {"double_width": True, "double_height": True},
-    "xlarge": {"double_width": True, "double_height": True},
+    "normal": 0x00,   # 1x1
+    "large": 0x11,    # 2x2
+    "xlarge": 0x33,   # 4x4
 }
+
+
+def _init_printer(printer):
+    """Reset printer and set compact defaults."""
+    printer._raw(b'\x1b\x40')       # ESC @ - initialize printer
+    printer._raw(b'\x1b\x33\x18')   # ESC 3 24 - line spacing 24 dots
+    printer._raw(b'\x1d\x21\x00')   # GS ! 0 - character size 1x1
 
 
 def process_jobs(printer, jobs, columns=48):
@@ -47,27 +55,15 @@ def _handle_text(printer, job, columns):
     size = job.get("size", "normal")
     font = job.get("font", "a")
 
-    size_opts = SIZE_MAP.get(size, SIZE_MAP["normal"])
+    size_byte = SIZE_MAP.get(size, 0x00)
 
-    printer.set(
-        align=align,
-        bold=bold,
-        underline=1 if underline else 0,
-        font=font,
-        double_width=size_opts["double_width"],
-        double_height=size_opts["double_height"],
-    )
+    printer.set(align=align, bold=bold, underline=1 if underline else 0, font=font)
+    printer._raw(b'\x1d\x21' + bytes([size_byte]))  # GS ! n — character size
     printer.text(content + "\n")
 
-    # Reset formatting after each job
-    printer.set(
-        align="left",
-        bold=False,
-        underline=0,
-        font="a",
-        double_width=False,
-        double_height=False,
-    )
+    # Reset formatting
+    printer.set(align="left", bold=False, underline=0, font="a")
+    printer._raw(b'\x1d\x21\x00')  # GS ! 0 — back to 1x1
 
 
 def _handle_image(printer, job):
@@ -213,6 +209,7 @@ def main():
         jobs = data.get("jobs", [])
 
         printer = Network(host, port, timeout=5)
+        _init_printer(printer)
         process_jobs(printer, jobs, columns)
         printer.close()
 

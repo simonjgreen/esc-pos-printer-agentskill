@@ -25,6 +25,9 @@ class MockPrinter:
     def close(self):
         self.calls.append(('close',))
 
+    def _raw(self, data):
+        self.calls.append(('_raw', data))
+
 
 def test_text_job_basic():
     printer = MockPrinter()
@@ -52,8 +55,9 @@ def test_text_job_large_size():
     jobs = [{"type": "text", "content": "Big", "size": "large"}]
     process_jobs(printer, jobs, columns=48)
 
-    set_calls = [c for c in printer.calls if c[0] == 'set']
-    assert any(c[1].get('double_width') == True and c[1].get('double_height') == True for c in set_calls)
+    raw_calls = [c for c in printer.calls if c[0] == '_raw']
+    # large = GS ! 0x11 (2x width, 2x height)
+    assert any(c[1] == b'\x1d\x21\x11' for c in raw_calls)
 
 
 def test_separator_default():
