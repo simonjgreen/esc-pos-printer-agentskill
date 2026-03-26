@@ -23,6 +23,10 @@ def process_jobs(printer, jobs, columns=48):
             _handle_separator(printer, job, columns)
         elif job_type == "columns":
             _handle_columns(printer, job, columns)
+        elif job_type == "barcode":
+            _handle_barcode(printer, job, columns)
+        elif job_type == "qr":
+            _handle_qr(printer, job)
         elif job_type == "cut":
             printer.cut()
 
@@ -57,6 +61,29 @@ def _handle_text(printer, job, columns):
         double_width=False,
         double_height=False,
     )
+
+
+def _handle_barcode(printer, job, columns):
+    """Print a barcode."""
+    data = job.get("data", "")
+    bc_format = job.get("format", "CODE128")
+    align = job.get("align", "center")
+
+    printer.set(align=align)
+    printer.barcode(data, bc_format)
+    printer.set(align="left")
+
+
+def _handle_qr(printer, job):
+    """Print a QR code."""
+    data = job.get("data", "")
+    size = job.get("size", 6)
+    ec = job.get("error_correction", "M")
+
+    ec_map = {"L": 0, "M": 1, "Q": 2, "H": 3}
+    native_ec = ec_map.get(ec, 1)
+
+    printer.qr(data, size=size, native=True, ec=native_ec)
 
 
 def _handle_separator(printer, job, columns):
