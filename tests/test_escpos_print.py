@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch, call
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'scripts'))
 
-from escpos_print import process_jobs
+from escpos_print import process_jobs, _create_printer
 
 
 class MockPrinter:
@@ -250,3 +250,41 @@ def test_demo_job():
 
     text_calls = [c for c in printer.calls if c[0] == 'text']
     assert len(text_calls) >= 8
+
+
+@patch("escpos_print.Network")
+def test_create_printer_network(MockNet):
+    config = {"type": "network", "host": "10.0.0.1", "port": 9100}
+    _create_printer(config)
+    MockNet.assert_called_once_with("10.0.0.1", 9100, timeout=5)
+
+
+@patch("escpos_print.Network")
+def test_create_printer_network_default_type(MockNet):
+    config = {"host": "10.0.0.1"}
+    _create_printer(config)
+    MockNet.assert_called_once_with("10.0.0.1", 9100, timeout=5)
+
+
+@patch("escpos_print.Usb")
+def test_create_printer_usb(MockUsb):
+    config = {"type": "usb", "vendor_id": 0x0416, "product_id": 0x5011}
+    _create_printer(config)
+    MockUsb.assert_called_once_with(
+        idVendor=0x0416, idProduct=0x5011, in_ep=0x82, out_ep=0x01, timeout=0
+    )
+
+
+@patch("escpos_print.Serial")
+def test_create_printer_serial(MockSerial):
+    config = {"type": "serial", "port": "/dev/ttyUSB0", "baudrate": 115200}
+    _create_printer(config)
+    MockSerial.assert_called_once_with(
+        devfile="/dev/ttyUSB0", baudrate=115200, timeout=1
+    )
+
+
+def test_create_printer_unknown_type():
+    import pytest
+    with pytest.raises(ValueError, match="Unknown printer type"):
+        _create_printer({"type": "bluetooth"})

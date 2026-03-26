@@ -1,14 +1,14 @@
 ---
 name: print
-description: Print text, receipts, barcodes, QR codes, or a test page to an ESC/POS thermal printer over IP
-argument-hint: <text or "demo"> [--host IP] [--port PORT]
+description: Print text, receipts, barcodes, QR codes, or a test page to an ESC/POS thermal printer over IP, USB, or serial
+argument-hint: <text or "demo"> [--host IP] [--port PORT] [--usb VENDOR:PRODUCT] [--serial /dev/ttyUSB0]
 allowed-tools: [Bash, Read, Write]
 version: 1.0.0
 ---
 
 # /print Command
 
-Print to an ESC/POS thermal printer over IP.
+Print to an ESC/POS thermal printer over IP, USB, or serial.
 
 ## Arguments
 
@@ -16,31 +16,46 @@ The user invoked this with: $ARGUMENTS
 
 ## Parsing Arguments
 
-1. If arguments contain `--host` or `--port`, extract those values. Otherwise use defaults: host=192.168.1.251, port=9100.
-2. The remaining text (after removing --host/--port flags) is the print content.
+1. Extract printer connection flags if present:
+   - `--host IP` and `--port PORT` → network printer
+   - `--usb VENDOR_ID:PRODUCT_ID` → USB printer (decimal IDs separated by colon)
+   - `--serial /dev/ttyUSB0` and optional `--baud RATE` → serial printer
+   - No flags → default network printer at 192.168.1.251:9100
+2. The remaining text (after removing flags) is the print content.
+
+## Printer Config by Flags
+
+**Network (default):**
+```json
+{"printer": {"type": "network", "host": "192.168.1.251", "port": 9100}}
+```
+
+**USB:**
+```json
+{"printer": {"type": "usb", "vendor_id": 1046, "product_id": 20497}}
+```
+
+**Serial:**
+```json
+{"printer": {"type": "serial", "port": "/dev/ttyUSB0", "baudrate": 9600}}
+```
 
 ## Behavior by Input
 
 ### `/print demo`
 Print the full test/demo page:
 ```json
-{
-  "printer": {"host": "192.168.1.251", "port": 9100},
-  "jobs": [{"type": "demo"}]
-}
+{"jobs": [{"type": "demo"}]}
 ```
 
 ### `/print <simple text>`
 Wrap in a text job with cut:
 ```json
-{
-  "printer": {"host": "192.168.1.251", "port": 9100},
-  "jobs": [
-    {"type": "text", "content": "<the text>", "size": "normal"},
-    {"type": "feed", "lines": 3},
-    {"type": "cut"}
-  ]
-}
+{"jobs": [
+  {"type": "text", "content": "<the text>", "size": "normal"},
+  {"type": "feed", "lines": 3},
+  {"type": "cut"}
+]}
 ```
 
 ### `/print receipt <description>`
@@ -48,42 +63,37 @@ Interpret the description and build a receipt with appropriate header, items, se
 
 ### `/print qr <data>`
 ```json
-{
-  "printer": {"host": "192.168.1.251", "port": 9100},
-  "jobs": [
-    {"type": "qr", "data": "<the data>", "size": 6},
-    {"type": "feed", "lines": 3},
-    {"type": "cut"}
-  ]
-}
+{"jobs": [
+  {"type": "qr", "data": "<the data>", "size": 6},
+  {"type": "feed", "lines": 3},
+  {"type": "cut"}
+]}
 ```
 
 ### `/print barcode <data>`
 ```json
-{
-  "printer": {"host": "192.168.1.251", "port": 9100},
-  "jobs": [
-    {"type": "barcode", "data": "<the data>", "format": "CODE128"},
-    {"type": "feed", "lines": 3},
-    {"type": "cut"}
-  ]
-}
+{"jobs": [
+  {"type": "barcode", "data": "<the data>", "format": "CODE128"},
+  {"type": "feed", "lines": 3},
+  {"type": "cut"}
+]}
 ```
 
 ## Execution
 
-Determine the plugin directory from context. Ensure the venv exists:
+Resolve the plugin directory:
+- **Claude Code:** `${CLAUDE_PLUGIN_ROOT}`
+- **OpenClaw:** `{baseDir}/..`
+- **Other:** The repo/plugin directory path
+
+Ensure the venv exists, then pipe JSON to the script:
 
 ```bash
-if [ ! -d "PLUGIN_DIR/scripts/.venv" ]; then
-    bash PLUGIN_DIR/scripts/setup.sh
+PLUGIN_DIR="<resolved plugin root>"
+if [ ! -d "$PLUGIN_DIR/scripts/.venv" ]; then
+    bash "$PLUGIN_DIR/scripts/setup.sh"
 fi
-```
-
-Then pipe the JSON to the script:
-
-```bash
-echo '<json>' | PLUGIN_DIR/scripts/.venv/bin/python PLUGIN_DIR/scripts/escpos_print.py
+echo '<json>' | "$PLUGIN_DIR/scripts/.venv/bin/python" "$PLUGIN_DIR/scripts/escpos_print.py"
 ```
 
 Report success or the error message from the JSON response.

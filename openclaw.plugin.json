@@ -1,0 +1,13 @@
+{
+  "name": "escpos-ip-printer",
+  "description": "Print to ESC/POS thermal printers over IP, USB, or serial — text, barcodes, QR codes, images, and receipt layouts",
+  "version": "1.0.0",
+  "skills": ["skills/escpos-print", "skills/print"],
+  "metadata": {
+    "openclaw": {
+      "requires": {
+        "bins": ["python3"]
+      }
+    }
+  }
+}

@@ -3,9 +3,8 @@
 
 import json
 import sys
-from escpos.printer import Network
+from escpos.printer import Network, Usb, Serial
 from PIL import Image as PILImage, ImageEnhance
-import numpy as np
 
 
 # GS ! n — character size. n = (width_mult - 1) << 4 | (height_mult - 1)
@@ -101,54 +100,59 @@ def _dither_image(img, method="stucki"):
         enhanced = ImageEnhance.Sharpness(enhanced).enhance(2.0)
         return enhanced.convert("1", dither=PILImage.Dither.FLOYDSTEINBERG)
 
-    # Error-diffusion methods implemented with numpy
-    img_arr = np.array(gray, dtype=np.float64)
+    # Error-diffusion methods using pure Python pixel arrays
+    w, h = gray.size
+    get = getattr(gray, "get_flattened_data", gray.getdata)
+    pixels = list(get())
+    arr = [float(p) for p in pixels]
 
     if method == "atkinson":
-        _diffuse_atkinson(img_arr)
+        _diffuse_atkinson(arr, w, h)
     else:  # stucki (default)
-        _diffuse_stucki(img_arr)
+        _diffuse_stucki(arr, w, h)
 
-    return PILImage.fromarray(
-        np.clip(img_arr, 0, 255).astype(np.uint8)
-    ).convert("1", dither=PILImage.Dither.NONE)
+    out = PILImage.new("L", (w, h))
+    out.putdata([max(0, min(255, int(v))) for v in arr])
+    return out.convert("1", dither=PILImage.Dither.NONE)
 
 
-def _diffuse_stucki(arr):
-    """Stucki error diffusion — sharp, high detail."""
-    h, w = arr.shape
+def _diffuse_stucki(arr, w, h):
+    """Stucki error diffusion — sharp, high detail. Operates on flat pixel list."""
     kernel = [
         (1,0,8),(2,0,4),
         (-2,1,2),(-1,1,4),(0,1,8),(1,1,4),(2,1,2),
         (-2,2,1),(-1,2,2),(0,2,4),(1,2,2),(2,2,1),
     ]
-    total = 42
+    total = 42.0
     for y in range(h):
+        row = y * w
         for x in range(w):
-            old = arr[y, x]
+            idx = row + x
+            old = arr[idx]
             new = 255.0 if old > 128 else 0.0
-            arr[y, x] = new
+            arr[idx] = new
             err = old - new
             for dx, dy, weight in kernel:
                 nx, ny = x + dx, y + dy
                 if 0 <= nx < w and 0 <= ny < h:
-                    arr[ny, nx] += err * weight / total
+                    arr[ny * w + nx] += err * weight / total
 
 
-def _diffuse_atkinson(arr):
+def _diffuse_atkinson(arr, w, h):
     """Atkinson error diffusion — lighter, more contrast, classic Mac style."""
-    h, w = arr.shape
     offsets = [(1,0),(2,0),(-1,1),(0,1),(1,1),(0,2)]
     for y in range(h):
+        row = y * w
         for x in range(w):
-            old = arr[y, x]
+            idx = row + x
+            old = arr[idx]
             new = 255.0 if old > 128 else 0.0
-            arr[y, x] = new
+            arr[idx] = new
             err = (old - new) / 8.0
             for dx, dy in offsets:
                 nx, ny = x + dx, y + dy
                 if 0 <= nx < w and 0 <= ny < h:
-                    arr[ny, nx] += err
+                    arr[ny * w + nx] += err
 
 
 def _handle_feed(printer, job):
@@ -270,16 +274,42 @@ def _generate_test_image():
     return img
 
 
+def _create_printer(config):
+    """Create a printer instance from config dict."""
+    ptype = config.get("type", "network")
+
+    if ptype == "network":
+        return Network(
+            config["host"],
+            config.get("port", 9100),
+            timeout=config.get("timeout", 5),
+        )
+    elif ptype == "usb":
+        return Usb(
+            idVendor=config["vendor_id"],
+            idProduct=config["product_id"],
+            in_ep=config.get("in_ep", 0x82),
+            out_ep=config.get("out_ep", 0x01),
+            timeout=config.get("timeout", 0),
+        )
+    elif ptype == "serial":
+        return Serial(
+            devfile=config["port"],
+            baudrate=config.get("baudrate", 9600),
+            timeout=config.get("timeout", 1),
+        )
+    else:
+        raise ValueError(f"Unknown printer type: {ptype}")
+
+
 def main():
-    """Main entry point — read JSON from stdin, print to network printer."""
+    """Main entry point — read JSON from stdin, send to printer."""
     try:
         data = json.load(sys.stdin)
-        host = data["printer"]["host"]
-        port = data["printer"].get("port", 9100)
         columns = data.get("columns", 48)
         jobs = data.get("jobs", [])
 
-        printer = Network(host, port, timeout=5)
+        printer = _create_printer(data["printer"])
         _init_printer(printer)
         process_jobs(printer, jobs, columns)
         printer.close()

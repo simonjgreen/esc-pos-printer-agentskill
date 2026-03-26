@@ -1,21 +1,26 @@
 ---
 name: escpos-print
-description: Use when the user asks to print something, generate a receipt, produce physical output, print a label, test a printer, or send output to a thermal printer. Handles ESC/POS printing over IP with support for text, barcodes, QR codes, images, and receipt layouts.
+description: Use when the user asks to print something, generate a receipt, produce physical output, print a label, test a printer, or send output to a thermal printer. Handles ESC/POS printing over IP, USB, or serial with support for text, barcodes, QR codes, images, and receipt layouts.
 version: 1.0.0
 allowed-tools: [Bash, Read, Write]
 ---
 
-# ESC/POS IP Printer
+# ESC/POS Printer
 
-Print to ESC/POS thermal printers over IP. Supports text formatting, barcodes, QR codes, images, and receipt-style layouts.
+Print to ESC/POS thermal printers over IP, USB, or serial. Supports text formatting, barcodes, QR codes, images (with smart dithering), and receipt-style layouts.
 
 ## Setup
 
-Before first use, ensure the venv exists. Determine PLUGIN_DIR as the root of this plugin (parent of `skills/`).
+Before first use, ensure the Python venv exists. The plugin root is the directory containing `scripts/` and `skills/`.
+
+- **Claude Code:** `${CLAUDE_PLUGIN_ROOT}` resolves the plugin root
+- **OpenClaw:** `{baseDir}/..` from a skill folder resolves to plugin root
+- **Other tools:** Resolve from the repo/plugin directory path
 
 ```bash
-if [ ! -d "PLUGIN_DIR/scripts/.venv" ]; then
-    bash PLUGIN_DIR/scripts/setup.sh
+PLUGIN_DIR="<resolved plugin root>"
+if [ ! -d "$PLUGIN_DIR/scripts/.venv" ]; then
+    bash "$PLUGIN_DIR/scripts/setup.sh"
 fi
 ```
 
@@ -24,19 +29,44 @@ fi
 Construct a JSON object and pipe it to the Python script:
 
 ```bash
-echo '<json>' | PLUGIN_DIR/scripts/.venv/bin/python PLUGIN_DIR/scripts/escpos_print.py
+echo '<json>' | "$PLUGIN_DIR/scripts/.venv/bin/python" "$PLUGIN_DIR/scripts/escpos_print.py"
 ```
 
-### Default Printer
+## Printer Configuration
 
-- **Host:** 192.168.1.251
-- **Port:** 9100
+The `"printer"` object selects the connection type.
 
-### JSON Format
+### Network (IP)
+```json
+{"printer": {"type": "network", "host": "192.168.1.251", "port": 9100}}
+```
+- `type`: "network" (default if omitted)
+- `host`: IP address (required)
+- `port`: TCP port (default: 9100)
+
+### USB
+```json
+{"printer": {"type": "usb", "vendor_id": 1046, "product_id": 20497}}
+```
+- `vendor_id`: USB vendor ID (required, decimal integer)
+- `product_id`: USB product ID (required, decimal integer)
+- `in_ep`: Input endpoint (default: 0x82)
+- `out_ep`: Output endpoint (default: 0x01)
+
+To find vendor/product IDs: `lsusb` on Linux, `system_profiler SPUSBDataType` on macOS.
+
+### Serial
+```json
+{"printer": {"type": "serial", "port": "/dev/ttyUSB0", "baudrate": 9600}}
+```
+- `port`: Device path (required) — e.g., `/dev/ttyUSB0`, `/dev/ttyACM0`, `COM3`
+- `baudrate`: Baud rate (default: 9600)
+
+## JSON Format
 
 ```json
 {
-  "printer": { "host": "192.168.1.251", "port": 9100 },
+  "printer": { "type": "network", "host": "192.168.1.251", "port": 9100 },
   "columns": 48,
   "jobs": [ ... ]
 }
@@ -44,9 +74,9 @@ echo '<json>' | PLUGIN_DIR/scripts/.venv/bin/python PLUGIN_DIR/scripts/escpos_pr
 
 - `columns`: Character width. 48 for 80mm printers (default), 32 for 58mm printers.
 
-### Job Types
+## Job Types
 
-#### Text
+### Text
 ```json
 {"type": "text", "content": "Hello", "bold": false, "underline": false, "align": "left", "size": "normal", "font": "a"}
 ```
@@ -54,32 +84,32 @@ echo '<json>' | PLUGIN_DIR/scripts/.venv/bin/python PLUGIN_DIR/scripts/escpos_pr
 - `size`: "normal", "large" (2x), "xlarge" (4x)
 - `font`: "a" (standard), "b" (condensed)
 
-#### Separator
+### Separator
 ```json
 {"type": "separator", "char": "-"}
 ```
 Fills the full column width with the character.
 
-#### Columns (two-column row)
+### Columns (two-column row)
 ```json
 {"type": "columns", "left": "Item Name", "right": "$5.00", "bold": false}
 ```
 Left-aligned left text, right-aligned right text, padded to column width.
 
-#### Barcode
+### Barcode
 ```json
 {"type": "barcode", "data": "123456789012", "format": "CODE128", "align": "center"}
 ```
 Formats: EAN13, UPC-A, CODE39, CODE128, ITF, CODABAR.
 
-#### QR Code
+### QR Code
 ```json
 {"type": "qr", "data": "https://example.com", "size": 6, "error_correction": "M"}
 ```
 - `size`: 1-16 (module size)
 - `error_correction`: L, M, Q, H
 
-#### Image
+### Image
 ```json
 {"type": "image", "path": "/tmp/image.png", "width": 384, "dither": "stucki"}
 ```
@@ -93,17 +123,17 @@ Supports PNG, JPG, BMP. Width in pixels (height scales proportionally). Max prin
   - `"floyd-steinberg"` — classic error diffusion. General purpose, slightly softer than Stucki.
   - `"threshold"` — hard black/white cutoff, no dithering. Best for already-monochrome images, text, simple logos.
 
-#### Feed
+### Feed
 ```json
 {"type": "feed", "lines": 3}
 ```
 
-#### Cut
+### Cut
 ```json
 {"type": "cut", "partial": false}
 ```
 
-#### Demo (test page)
+### Demo (test page)
 ```json
 {"type": "demo"}
 ```
@@ -117,7 +147,7 @@ The script returns JSON on stdout:
 
 ## Examples
 
-**Simple text:**
+**Network printer — simple text:**
 ```json
 {
   "printer": {"host": "192.168.1.251", "port": 9100},
@@ -129,10 +159,10 @@ The script returns JSON on stdout:
 }
 ```
 
-**Receipt:**
+**USB printer — receipt:**
 ```json
 {
-  "printer": {"host": "192.168.1.251", "port": 9100},
+  "printer": {"type": "usb", "vendor_id": 1046, "product_id": 20497},
   "columns": 48,
   "jobs": [
     {"type": "text", "content": "ACME STORE", "align": "center", "size": "large", "bold": true},
@@ -150,9 +180,25 @@ The script returns JSON on stdout:
 }
 ```
 
+**Serial printer — label:**
+```json
+{
+  "printer": {"type": "serial", "port": "/dev/ttyUSB0", "baudrate": 115200},
+  "columns": 32,
+  "jobs": [
+    {"type": "text", "content": "SHELF LABEL", "align": "center", "bold": true},
+    {"type": "barcode", "data": "SKU12345", "format": "CODE128"},
+    {"type": "feed", "lines": 3},
+    {"type": "cut"}
+  ]
+}
+```
+
 ## Error Handling
 
 If the script fails, report the error message to the user. Common issues:
-- Connection refused: printer off or wrong IP
+- Connection refused: printer off or wrong IP/port
 - Timeout: printer unreachable on network
+- USB device not found: wrong vendor/product ID or no permissions (`sudo` or udev rule needed)
+- Serial port error: wrong device path or port in use
 - File not found: image path doesn't exist
