@@ -210,3 +210,20 @@ def test_image_job_with_width():
     assert passed_img.width == 200
 
     os.unlink(tmp_path)
+
+
+def test_demo_job():
+    printer = MockPrinterFull()
+    jobs = [{"type": "demo"}]
+    process_jobs(printer, jobs, columns=48)
+
+    call_types = [c[0] for c in printer.calls]
+
+    assert 'text' in call_types
+    assert 'barcode' in call_types
+    assert 'qr' in call_types
+    assert 'image' in call_types
+    assert 'cut' in call_types
+
+    text_calls = [c for c in printer.calls if c[0] == 'text']
+    assert len(text_calls) >= 8

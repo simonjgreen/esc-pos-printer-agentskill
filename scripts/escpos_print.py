@@ -32,6 +32,8 @@ def process_jobs(printer, jobs, columns=48):
             _handle_image(printer, job)
         elif job_type == "feed":
             _handle_feed(printer, job)
+        elif job_type == "demo":
+            _handle_demo(printer, columns)
         elif job_type == "cut":
             printer.cut()
 
@@ -134,6 +136,67 @@ def _handle_columns(printer, job, columns):
 
     if bold:
         printer.set(bold=False)
+
+
+def _handle_demo(printer, columns):
+    """Print a full capability demo/test page."""
+    demo_jobs = [
+        {"type": "text", "content": "ESC/POS PRINTER TEST", "align": "center", "size": "large", "bold": True},
+        {"type": "text", "content": "Capability Demo Page", "align": "center"},
+        {"type": "separator", "char": "="},
+        {"type": "text", "content": "Normal text"},
+        {"type": "text", "content": "Bold text", "bold": True},
+        {"type": "text", "content": "Underline text", "underline": True},
+        {"type": "text", "content": "Font B text", "font": "b"},
+        {"type": "text", "content": "Right aligned", "align": "right"},
+        {"type": "text", "content": "Center aligned", "align": "center"},
+        {"type": "separator"},
+        {"type": "text", "content": "RECEIPT DEMO", "align": "center", "bold": True},
+        {"type": "separator"},
+        {"type": "columns", "left": "Widget A", "right": "$9.99"},
+        {"type": "columns", "left": "Widget B", "right": "$14.50"},
+        {"type": "columns", "left": "Gizmo C", "right": "$3.25"},
+        {"type": "columns", "left": "Doohickey D", "right": "$7.00"},
+        {"type": "separator", "char": "="},
+        {"type": "columns", "left": "TOTAL", "right": "$34.74", "bold": True},
+        {"type": "feed", "lines": 1},
+        {"type": "text", "content": "BARCODE TEST", "align": "center", "bold": True},
+        {"type": "barcode", "data": "TESTPRINT123", "format": "CODE128"},
+        {"type": "feed", "lines": 1},
+        {"type": "text", "content": "QR CODE TEST", "align": "center", "bold": True},
+        {"type": "qr", "data": "https://github.com/anthropics/claude-code", "size": 6},
+        {"type": "feed", "lines": 1},
+        {"type": "text", "content": "IMAGE TEST", "align": "center", "bold": True},
+    ]
+
+    process_jobs(printer, demo_jobs, columns)
+
+    # Generate and print a checkerboard test image
+    checkerboard = _generate_test_image()
+    printer.image(checkerboard)
+
+    # Footer
+    process_jobs(printer, [
+        {"type": "feed", "lines": 1},
+        {"type": "separator", "char": "="},
+        {"type": "text", "content": "TEST COMPLETE", "align": "center", "bold": True},
+        {"type": "text", "content": f"Column width: {columns}", "align": "center"},
+        {"type": "feed", "lines": 4},
+        {"type": "cut"},
+    ], columns)
+
+
+def _generate_test_image():
+    """Generate a small checkerboard test pattern image."""
+    width, height = 200, 50
+    img = PILImage.new("1", (width, height), 1)
+    pixels = img.load()
+    block = 10
+    for y in range(height):
+        for x in range(width):
+            if (x // block + y // block) % 2 == 0:
+                pixels[x, y] = 0
+    return img
 
 
 def main():
