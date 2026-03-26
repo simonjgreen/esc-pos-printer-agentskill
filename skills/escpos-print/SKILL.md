@@ -3,6 +3,7 @@ name: escpos-print
 description: Use when the user asks to print something, generate a receipt, produce physical output, print a label, test a printer, or send output to a thermal printer. Handles ESC/POS printing over IP, USB, or serial with support for text, barcodes, QR codes, images, and receipt layouts.
 version: 1.0.0
 allowed-tools: [Bash, Read, Write]
+metadata: {"openclaw": {"requires": {"bins": ["python3"]}}}
 ---
 
 # ESC/POS Printer

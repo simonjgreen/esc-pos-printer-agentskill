@@ -4,6 +4,7 @@ description: Print text, receipts, barcodes, QR codes, or a test page to an ESC/
 argument-hint: <text or "demo"> [--host IP] [--port PORT] [--usb VENDOR:PRODUCT] [--serial /dev/ttyUSB0]
 allowed-tools: [Bash, Read, Write]
 version: 1.0.0
+metadata: {"openclaw": {"requires": {"bins": ["python3"]}}}
 ---
 
 # /print Command
