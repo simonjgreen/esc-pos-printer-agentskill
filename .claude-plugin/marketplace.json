@@ -1,0 +1,20 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "escpos-printer",
+  "description": "Print to ESC/POS thermal printers over IP, USB, or serial",
+  "owner": {
+    "name": "Simon Green"
+  },
+  "plugins": [
+    {
+      "name": "escpos-ip-printer",
+      "description": "Print to ESC/POS thermal printers over IP, USB, or serial — text, barcodes, QR codes, images, and receipt layouts",
+      "version": "1.0.0",
+      "source": "./",
+      "author": {
+        "name": "Simon Green"
+      },
+      "homepage": "https://github.com/simonjgreen/esc-pos-printer-agentskill"
+    }
+  ]
+}
