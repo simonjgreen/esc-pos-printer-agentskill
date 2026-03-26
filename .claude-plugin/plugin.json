@@ -1,0 +1,9 @@
+{
+  "name": "escpos-ip-printer",
+  "description": "Print to ESC/POS thermal printers over IP — text, barcodes, QR codes, images, and receipt layouts",
+  "author": {
+    "name": "Simon",
+    "email": ""
+  },
+  "version": "1.0.0"
+}
